@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moon Phase Tracker</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & Lora -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Lora:wght@700&display=swap" rel="stylesheet">
+    <!-- SunCalc.js for moon calculations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.8.0/suncalc.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-image: url('https://images.unsplash.com/photo-1506443432602-ac2fcd6f54e0?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            overflow: hidden; /* Hide scrollbars from shooting star */
+        }
+        h1 {
+            font-family: 'Lora', serif;
+        }
+        /* Transitions for overlays */
+        .overlay {
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        .overlay.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+        .overlay-content {
+            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+        }
+        .overlay.hidden .overlay-content {
+            transform: scale(0.95);
+            opacity: 0;
+        }
+        /* Simple transition for the moon emoji */
+        #moon-emoji {
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+        }
+        /* Custom scrollable date picker styles */
+        .scroll-column {
+            height: 200px;
+            overflow-y: scroll;
+            -ms-overflow-style: none; /* IE and Edge */
+            scrollbar-width: none; /* Firefox */
+        }
+        .scroll-column::-webkit-scrollbar {
+            display: none; /* Chrome, Safari, and Opera */
+        }
+        .scroll-item {
+            scroll-snap-align: center;
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .scroll-item.selected {
+            background-color: #52525b; /* zinc-600 */
+            color: white;
+            font-weight: bold;
+        }
+        /* Shooting Star Animation */
+        .shooting-star {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 4px;
+            height: 4px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.1), 0 0 0 8px rgba(255, 255, 255, 0.1), 0 0 20px rgba(255, 255, 255, 1);
+            animation: animate-star 7s linear infinite;
+            z-index: -10;
+        }
+        .shooting-star::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 300px;
+            height: 1px;
+            background: linear-gradient(90deg, #fff, transparent);
+        }
+        @keyframes animate-star {
+            0% { transform: rotate(315deg) translateX(0); opacity: 1; }
+            70% { opacity: 1; }
+            100% { transform: rotate(315deg) translateX(-1500px); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="bg-black text-white flex items-center justify-center min-h-screen antialiased p-4">
+
+    <!-- Shooting Star Element -->
+    <div class="shooting-star"></div>
+
+    <!-- Main Layout Container -->
+    <div class="w-full max-w-7xl mx-auto flex flex-row gap-8 items-center">
+        
+        <!-- Left Panel: Controls -->
+        <div class="hidden lg:flex flex-col justify-around items-center space-y-6">
+            <button id="show-datepicker-btn" class="p-4 bg-zinc-900/50 backdrop-blur-sm border border-zinc-700 rounded-full text-zinc-300 hover:text-white hover:bg-zinc-700/50 transition-colors duration-200">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            </button>
+            <div class="h-16 w-px bg-zinc-700"></div>
+            <button id="show-forecast-btn" class="p-4 bg-zinc-900/50 backdrop-blur-sm border border-zinc-700 rounded-full text-zinc-300 hover:text-white hover:bg-zinc-700/50 transition-colors duration-200">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>
+            </button>
+            <div class="h-16 w-px bg-zinc-700"></div>
+            <button id="reset-day-btn" class="p-4 bg-zinc-900/50 backdrop-blur-sm border border-zinc-700 rounded-full text-zinc-300 hover:text-white hover:bg-zinc-700/50 transition-colors duration-200">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </button>
+        </div>
+
+        <!-- Main Display Container -->
+        <div class="w-full flex-grow">
+            <div class="w-full bg-zinc-900/70 backdrop-blur-sm rounded-3xl shadow-2xl border border-zinc-700 p-8 flex flex-col text-center relative">
+                <header class="mb-6">
+                    <h1 class="text-5xl font-bold text-zinc-100">Moon Phase Tracker</h1>
+                    <p id="current-date" class="text-zinc-400 mt-3 text-lg"></p>
+                </header>
+
+                <div id="moon-display" class="my-auto flex flex-col md:flex-row items-center justify-center gap-8 md:gap-16">
+                    <!-- Left: Emoji -->
+                    <div id="moon-emoji" class="text-9xl"></div>
+                    <!-- Right: Details -->
+                    <div class="space-y-6 text-left">
+                        <div>
+                            <h2 class="text-lg font-medium text-zinc-400">Phase</h2>
+                            <p id="phase-name" class="text-3xl font-bold text-zinc-200"></p>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-medium text-zinc-400">Illumination</h2>
+                            <p id="illumination" class="text-3xl font-bold text-zinc-200"></p>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-medium text-zinc-400">Next Event</h2>
+                            <p id="next-event" class="text-3xl font-bold text-zinc-200"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-8 pt-6 border-t border-zinc-700">
+                    <h2 class="text-2xl font-bold text-zinc-200 mb-3">Did You Know?</h2>
+                    <p id="fun-fact" class="text-zinc-300 mb-4 h-24 flex items-center justify-center text-lg"></p>
+                    <button id="new-fact-btn" class="w-full max-w-xs mx-auto px-5 py-3 bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-colors duration-300 text-md font-semibold shadow-md">New Fact</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Overlays -->
+    <!-- Date Picker Overlay -->
+    <div id="datepicker-overlay" class="overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div class="overlay-content bg-zinc-900/85 border border-zinc-700 rounded-3xl p-8 text-center shadow-2xl relative w-full max-w-md">
+            <button class="close-overlay-btn absolute top-4 right-4 text-zinc-400 hover:text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <h2 class="block mb-6 text-2xl font-medium text-zinc-100">Select a Date</h2>
+            <div class="flex justify-center items-start space-x-4 text-2xl">
+                <div id="month-column" class="scroll-column w-1/3 bg-zinc-700/50 rounded-lg p-2"></div>
+                <div id="day-column" class="scroll-column w-1/3 bg-zinc-700/50 rounded-lg p-2"></div>
+                <div id="year-column" class="scroll-column w-1/3 bg-zinc-700/50 rounded-lg p-2"></div>
+            </div>
+            <button id="set-date-btn" class="mt-6 w-full px-5 py-3 bg-zinc-200 hover:bg-white text-zinc-800 rounded-lg transition-colors duration-300 text-lg font-semibold shadow-md">Set Date</button>
+        </div>
+    </div>
+
+    <!-- Forecast Overlay -->
+    <div id="forecast-overlay" class="overlay hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div class="overlay-content bg-zinc-900/85 border border-zinc-700 rounded-3xl p-8 shadow-2xl relative w-full max-w-6xl">
+             <button class="close-overlay-btn absolute top-4 right-4 text-zinc-400 hover:text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <h2 class="text-2xl font-bold text-zinc-100 mb-6 text-center">7-Day Forecast</h2>
+            <div id="forecast-container" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4"></div>
+        </div>
+    </div>
+
+
+    <script>
+        // DOM element references
+        const moonEmojiEl = document.getElementById('moon-emoji');
+        const phaseNameEl = document.getElementById('phase-name');
+        const illuminationEl = document.getElementById('illumination');
+        const currentDateEl = document.getElementById('current-date');
+        const nextEventEl = document.getElementById('next-event');
+        const funFactEl = document.getElementById('fun-fact');
+        const newFactBtn = document.getElementById('new-fact-btn');
+        
+        // Control Buttons
+        const showDatepickerBtn = document.getElementById('show-datepicker-btn');
+        const showForecastBtn = document.getElementById('show-forecast-btn');
+        const resetDayBtn = document.getElementById('reset-day-btn');
+        
+        // Overlay Elements
+        const datepickerOverlay = document.getElementById('datepicker-overlay');
+        const forecastOverlay = document.getElementById('forecast-overlay');
+        const closeOverlayBtns = document.querySelectorAll('.close-overlay-btn');
+        
+        // Custom Date Picker Elements
+        const monthColumn = document.getElementById('month-column');
+        const dayColumn = document.getElementById('day-column');
+        const yearColumn = document.getElementById('year-column');
+        const setDateBtn = document.getElementById('set-date-btn');
+        
+        const forecastContainer = document.getElementById('forecast-container');
+
+        // State variables
+        let displayedDate = new Date();
+        let pickerDate = {
+            year: displayedDate.getFullYear(),
+            month: displayedDate.getMonth(),
+            day: displayedDate.getDate()
+        };
+
+        const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+        // Contextual fun facts based on moon phase
+        const phaseFacts = {
+            'New Moon': ["A New Moon is nearly invisible because the side facing Earth is not illuminated by the Sun.", "Solar eclipses, when the Moon blocks the Sun, can only occur during the New Moon phase.", "This is the best time for stargazing due to the dark sky."],
+            'Waxing Crescent': ["This is the first visible sliver of the Moon after a New Moon.", "'Waxing' means the illuminated portion of the Moon is growing.", "The crescent appears on the right in the Northern Hemisphere."],
+            'First Quarter': ["A First Quarter Moon looks like a half-moon.", "The Moon is at a 90-degree angle with respect to the Earth and Sun.", "It rises around noon and sets around midnight."],
+            'Waxing Gibbous': ["A 'gibbous' moon is when more than half is illuminated.", "This phase is between the First Quarter and Full Moon.", "The Moon appears to grow larger each night."],
+            'Full Moon': ["A Full Moon occurs when Earth is between the Sun and Moon.", "Lunar eclipses can only happen during a Full Moon.", "Cultures have names for Full Moons, like 'Wolf Moon'."],
+            'Waning Gibbous': ["'Waning' means the illuminated portion is shrinking.", "This phase occurs just after the Full Moon.", "The Moon rises later each night."],
+            'Last Quarter': ["Also known as the Third Quarter.", "It rises around midnight and sets around noon.", "The left half is illuminated in the Northern Hemisphere."],
+            'Waning Crescent': ["This is the last sliver of Moon visible before a New Moon.", "It's often called the 'old moon' and is best seen before sunrise.", "The crescent appears on the left in the Northern Hemisphere."]
+        };
+
+        /**
+         * Determines the moon phase name and corresponding emoji.
+         */
+        function getMoonPhaseInfo(phase) {
+            if (phase < 0.03 || phase > 0.97) return { name: 'New Moon', emoji: '🌑' };
+            if (phase < 0.22) return { name: 'Waxing Crescent', emoji: '🌒' };
+            if (phase < 0.28) return { name: 'First Quarter', emoji: '🌓' };
+            if (phase < 0.47) return { name: 'Waxing Gibbous', emoji: '🌔' };
+            if (phase < 0.53) return { name: 'Full Moon', emoji: '🌕' };
+            if (phase < 0.72) return { name: 'Waning Gibbous', emoji: '🌖' };
+            if (phase < 0.78) return { name: 'Last Quarter', emoji: '🌗' };
+            return { name: 'Waning Crescent', emoji: '🌘' };
+        }
+
+        /**
+         * Updates the main moon display UI.
+         */
+        function updateMoonUI(date) {
+            moonEmojiEl.style.opacity = '0';
+            moonEmojiEl.style.transform = 'scale(0.8)';
+
+            setTimeout(() => {
+                const moonIllumination = SunCalc.getMoonIllumination(date);
+                const phaseInfo = getMoonPhaseInfo(moonIllumination.phase);
+                const illuminationPercentage = (moonIllumination.fraction * 100).toFixed(1);
+
+                moonEmojiEl.textContent = phaseInfo.emoji;
+                phaseNameEl.textContent = phaseInfo.name;
+                illuminationEl.textContent = `${illuminationPercentage}%`;
+                currentDateEl.textContent = date.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+                moonEmojiEl.style.opacity = '1';
+                moonEmojiEl.style.transform = 'scale(1)';
+                
+                displayPhaseFact(phaseInfo.name);
+                calculateNextEvent(date);
+            }, 300);
+        }
+
+        /**
+         * Calculates and displays the next major moon event (New or Full Moon).
+         */
+        function calculateNextEvent(currentDate) {
+            let eventDate = new Date(currentDate);
+            for (let i = 0; i < 35; i++) { // Check up to 35 days ahead
+                eventDate.setDate(eventDate.getDate() + 1);
+                const phase = SunCalc.getMoonIllumination(eventDate).phase;
+
+                if (phase < 0.03 || phase > 0.97) {
+                    nextEventEl.textContent = `New Moon on ${eventDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}`;
+                    return;
+                }
+                if (phase > 0.47 && phase < 0.53) {
+                    nextEventEl.textContent = `Full Moon on ${eventDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}`;
+                    return;
+                }
+            }
+            nextEventEl.textContent = 'Calculating...';
+        }
+
+        /**
+         * Updates the 7-day forecast list.
+         */
+        function updateForecast(baseDate) {
+            forecastContainer.innerHTML = '';
+            for (let i = 1; i <= 7; i++) {
+                const forecastDate = new Date(baseDate);
+                forecastDate.setDate(baseDate.getDate() + i);
+                const moonIllumination = SunCalc.getMoonIllumination(forecastDate);
+                const phaseInfo = getMoonPhaseInfo(moonIllumination.phase);
+                const dayName = forecastDate.toLocaleDateString(undefined, { weekday: 'short' });
+                const item = document.createElement('div');
+                item.className = 'flex flex-col items-center p-4 bg-zinc-700/50 rounded-xl h-48 justify-between';
+                item.innerHTML = `
+                    <p class="font-semibold text-lg">${dayName}</p>
+                    <p class="text-5xl my-2">${phaseInfo.emoji}</p>
+                    <p class="text-lg text-zinc-400">${(moonIllumination.fraction * 100).toFixed(0)}%</p>
+                `;
+                forecastContainer.appendChild(item);
+            }
+        }
+        
+        /**
+         * Displays a random fun fact for the given phase.
+         */
+        function displayPhaseFact(phaseName) {
+            const facts = phaseFacts[phaseName] || ["The Moon is a fascinating celestial body!"];
+            const randomIndex = Math.floor(Math.random() * facts.length);
+            funFactEl.textContent = facts[randomIndex];
+        }
+
+        /**
+         * Main function to update all components.
+         */
+        function updateAll(date) {
+            updateMoonUI(date);
+            updateForecast(date);
+        }
+
+        /**
+         * Populates a scrollable column with items.
+         */
+        function populateColumn(columnEl, items, selectedValue, onClickCallback) {
+            columnEl.innerHTML = '';
+            items.forEach(({ label, value }) => {
+                const item = document.createElement('div');
+                item.textContent = label;
+                item.dataset.value = value;
+                item.className = 'scroll-item p-2 rounded-md';
+                if (value === selectedValue) {
+                    item.classList.add('selected');
+                }
+                columnEl.appendChild(item);
+            });
+            columnEl.addEventListener('click', (event) => {
+                const target = event.target.closest('.scroll-item');
+                if (target) {
+                    onClickCallback(target.dataset.value);
+                }
+            });
+        }
+
+        // --- Custom Date Picker Logic ---
+        function populateDatePicker() {
+            const currentYear = new Date().getFullYear();
+            const years = Array.from({ length: 201 }, (_, i) => ({ label: currentYear - 100 + i, value: currentYear - 100 + i }));
+            populateColumn(yearColumn, years, pickerDate.year, (value) => {
+                pickerDate.year = parseInt(value);
+                populateDayColumn();
+                updatePickerSelection();
+            });
+
+            const monthItems = months.map((m, i) => ({ label: m, value: i }));
+            populateColumn(monthColumn, monthItems, pickerDate.month, (value) => {
+                pickerDate.month = parseInt(value);
+                populateDayColumn();
+                updatePickerSelection();
+            });
+            
+            populateDayColumn();
+        }
+
+        function populateDayColumn() {
+            const daysInMonth = new Date(pickerDate.year, pickerDate.month + 1, 0).getDate();
+            if (pickerDate.day > daysInMonth) pickerDate.day = daysInMonth;
+            const days = Array.from({ length: daysInMonth }, (_, i) => ({ label: i + 1, value: i + 1 }));
+            populateColumn(dayColumn, days, pickerDate.day, (value) => {
+                pickerDate.day = parseInt(value);
+                updatePickerSelection();
+            });
+        }
+        
+        function updatePickerSelection() {
+            document.querySelectorAll('.scroll-item').forEach(el => el.classList.remove('selected'));
+            monthColumn.querySelector(`[data-value='${pickerDate.month}']`)?.classList.add('selected');
+            dayColumn.querySelector(`[data-value='${pickerDate.day}']`)?.classList.add('selected');
+            yearColumn.querySelector(`[data-value='${pickerDate.year}']`)?.classList.add('selected');
+        }
+        
+        function scrollToSelected() {
+            monthColumn.querySelector('.selected')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            dayColumn.querySelector('.selected')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            yearColumn.querySelector('.selected')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
+
+        // --- Overlay Controls ---
+        function showOverlay(overlayElement) {
+            if (overlayElement === datepickerOverlay) {
+                pickerDate.year = displayedDate.getFullYear();
+                pickerDate.month = displayedDate.getMonth();
+                pickerDate.day = displayedDate.getDate();
+                populateDatePicker();
+                setTimeout(scrollToSelected, 50);
+            }
+            overlayElement.classList.remove('hidden');
+        }
+
+        function hideAllOverlays() {
+            datepickerOverlay.classList.add('hidden');
+            forecastOverlay.classList.add('hidden');
+        }
+
+        // --- Event Listeners ---
+        showDatepickerBtn.addEventListener('click', () => {
+            showOverlay(datepickerOverlay);
+        });
+        showForecastBtn.addEventListener('click', () => {
+            showOverlay(forecastOverlay);
+        });
+        
+        // Close overlays when clicking outside of the content
+        [datepickerOverlay, forecastOverlay].forEach(overlay => {
+            overlay.addEventListener('click', (event) => {
+                if (event.target === overlay) {
+                    hideAllOverlays();
+                }
+            });
+        });
+
+        closeOverlayBtns.forEach(btn => btn.addEventListener('click', hideAllOverlays));
+
+        setDateBtn.addEventListener('click', () => {
+            displayedDate = new Date(pickerDate.year, pickerDate.month, pickerDate.day);
+            updateAll(displayedDate);
+            hideAllOverlays();
+        });
+
+        resetDayBtn.addEventListener('click', () => {
+            displayedDate = new Date();
+            updateAll(displayedDate);
+        });
+        
+        newFactBtn.addEventListener('click', () => {
+            const currentPhase = phaseNameEl.textContent;
+            displayPhaseFact(currentPhase);
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') hideAllOverlays();
+        });
+
+        // --- Initial Load ---
+        document.addEventListener('DOMContentLoaded', () => {
+            updateAll(displayedDate);
+        });
+    </script>
+</body>
+</html>
